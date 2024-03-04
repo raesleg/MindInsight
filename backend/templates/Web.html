@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splash Awards 2022 - Sui Bian</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/stylesheet.css') }}" />
+</head>
+<body>
+    <div id="uploadContainer">
+        <h1>Upload new File</h1>
+        <form method="post" enctype="multipart/form-data">
+            <input type="file" name="file" id="fileButton"/>
+            <br>
+            <input type="submit" id="submitButton" value="Transcribe"/>
+        </form>
+    </div>
+    <div id="camContainer" class="left">
+        <h1 id="CH1">Video Feed</h1>
+        <img id='cam' width="77%" src="https://media.tenor.com/Hu78MtEUk1UAAAAd/michael-socha-sad-face.gif"></script>
+    </div>
+    <div id="FacialContainer" class="left">
+        <h1 id="FH1">Facial Emotion Analysis</h1>
+        {% for f_results in f_results %}
+        <p class="resultsf">{{ f_results }}</p>
+        {% endfor %}
+    </div>
+    <div id="audioContainer" class="right">
+        <div id="speechTranscriptContainer">
+            <h1>Transcript</h1>
+            <p class="resultst">{{ transcript }}</p>
+        </div>
+        <div id="SentimentContainer">
+            <h1>Sentiment Analysis Results</h1>
+            {% for s_results in s_results %}
+            <p class="results">{{ s_results }}</p>
+            {% endfor %}
+        </div>
+        <div id="KeywordContainer">
+            <h1>Word highlight Results</h1>
+            {% for k_results in k_results %}
+            <p class="results">{{ k_results }}</p>
+            {% endfor %}
+        </div>
+    </div>
+    <div id="PlotContainer" class="right">
+        <h1 id="plotH1">Audio Waves</h1>
+        <img id="plotWave" src= 'data:image/png;base64, {{plotUrl}}' width="85%" height="100%">
+    </div>
+</body>
+</html>
