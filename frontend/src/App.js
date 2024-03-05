@@ -27,6 +27,10 @@ function App() {
   const [audioDetails, setAudioDetails] = useState(initialState);
   const [transcript, setTranscript] = useState({ id: ''});
   const [isLoading, setIsLoading] = useState(false);
+  const [file, setFile] = useState(null);
+  const [sResults, setSResults] = useState([]);
+  const [kResults, setKResults] = useState([]);
+  const [plotUrl, setPlotUrl] = useState('');
 
   const handleAudioStop = (data) => {
     setAudioDetails(data);
@@ -52,16 +56,83 @@ function App() {
   //   setTranscript({ id: data.id });
   // }
 
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      alert('Please select a file.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:5000/data', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTranscript(data.transcript);
+        setSResults(data.s_results);
+        setKResults(data.k_results);
+        setPlotUrl(data.plotUrl);
+      } else {
+        alert('Error uploading file.');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    console.log("Data:", { transcript, sResults, kResults, plotUrl });
+
+  };
+
   return (
-    <div className="container">
-      <Recorder
-        record = {true}
-        audioURL= {audioDetails.url}
-        handleAudioStop = {handleAudioStop}
-        // handleAudioUpload = {handleAudioUpload}
-        handleReset = {handleReset}
-        />
-    </div>
+    <div>
+      <div id="uploadContainer">
+        <h1>Upload new File</h1>
+        <input type="file" onChange={handleFileChange} />
+        <br />
+        <button onClick={handleUpload}>Transcribe</button>
+      </div>
+
+      Display the results only if data is available
+      {/* {transcript && (
+        <div id="audioContainer" className="right">
+          <div id="speechTranscriptContainer">
+            <h1>Transcript</h1>
+            <p className="resultst">{transcript}</p>
+          </div>
+          {sResults.length > 0 && (
+            <div id="SentimentContainer">
+              <h1>Sentiment Analysis Results</h1>
+              {sResults.map((result, index) => (
+                <p key={index} className="results">{result}</p>
+              ))}
+            </div>
+          )}
+          {kResults.length > 0 && (
+            <div id="KeywordContainer">
+              <h1>Word highlight Results</h1>
+              {kResults.map((result, index) => (
+                <p key={index} className="results">{result}</p>
+              ))}
+            </div>
+          )}
+      </div>
+    )}
+
+    {plotUrl && (
+      <div id="PlotContainer" className="right">
+        <h1 id="plotH1">Audio Waves</h1>
+        <img id="plotWave" src={`data:image/png;base64, ${plotUrl}`} width="85%" height="100%" alt="Plot" />
+      </div>
+    )} */}
+  </div>
   );
 }
 
