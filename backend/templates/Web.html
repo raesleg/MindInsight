@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Splash Awards 2022 - Sui Bian</title>
+    <title>MindInsight</title>
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/stylesheet.css') }}" />
 </head>
@@ -19,13 +19,15 @@
     </div>
     <div id="camContainer" class="left">
         <h1 id="CH1">Video Feed</h1>
-        <img id='cam' width="77%" src="https://media.tenor.com/Hu78MtEUk1UAAAAd/michael-socha-sad-face.gif"></script>
+        <img id="webcam" src="data:image/jpeg;base64, {{ base64_frame }}" width="100%" height="auto">
+        <img id='emotionCanvas' width="100%" style="position: absolute; top: 0; left: 0;" src="data:image/jpeg;base64, {{ canvas }}">
     </div>
     <div id="FacialContainer" class="left">
         <h1 id="FH1">Facial Emotion Analysis</h1>
-        {% for f_results in f_results %}
-        <p class="resultsf">{{ f_results }}</p>
-        {% endfor %}
+        <div id="RealTimeContainer" class="left">
+            <p class="resultsr">Emotion: <span id="emotionLabel"></span></p>
+            <p class="resultsr">Probability: <span id="emotionProbability"></span>%</p>
+        </div>
     </div>
     <div id="audioContainer" class="right">
         <div id="speechTranscriptContainer">
@@ -49,5 +51,17 @@
         <h1 id="plotH1">Audio Waves</h1>
         <img id="plotWave" src= 'data:image/png;base64, {{plotUrl}}' width="85%" height="100%">
     </div>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js"></script>
+    <script type="text/javascript">
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        socket.on('update_results', function(data) {
+            document.getElementById('emotionLabel').innerText = data.label;
+            document.getElementById('emotionProbability').innerText = data.emotion_probability;
+            document.getElementById('webcam').src = 'data:image/jpeg;base64,' + data.base64_frame;
+            document.getElementById('emotionCanvas').src = 'data:image/jpeg;base64,' + data.canvas;
+            // Update the bar chart and webcam image as needed
+        });
+    </script>
 </body>
 </html>

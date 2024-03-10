@@ -6,7 +6,7 @@ import numpy as np
 import io
 import base64
 
-obj = wave.open('backend\TranscribeThis.wav', 'rb')
+obj = wave.open('TranscribeThis.wav', 'rb')
 
 sample_freq = obj.getframerate()
 n_samples = obj.getnframes()
