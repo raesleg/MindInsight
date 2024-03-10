@@ -7,9 +7,17 @@
     <title>Splash Awards 2022 - Sui Bian</title>
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/stylesheet.css') }}" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    
 </head>
 <body>
     <div id="uploadContainer">
+
+        <p>
+            <button id="startRecording">Start recording</button>
+            <button id="stopRecording" disabled>Stop recording</button>
+        </p>
+
         <h1>Upload new File</h1>
         <form method="post" enctype="multipart/form-data">
             <input type="file" name="file" id="fileButton"/>
@@ -50,4 +58,60 @@
         <img id="plotWave" src= 'data:image/png;base64, {{plotUrl}}' width="85%" height="100%">
     </div>
 </body>
+<script>
+    navigator
+        .mediaDevices
+        .getUserMedia({audio: true})
+        .then(stream => { handlerFunction(stream) });
+
+    function handlerFunction(stream) {
+        rec = new MediaRecorder(stream);
+        rec.ondataavailable = e => {
+            audioChunks.push(e.data);
+            if (rec.state == "inactive") {
+                let blob = new Blob(audioChunks, {type: 'audio/mpeg-3'});
+                sendData(blob);
+            }
+        }
+    }
+
+    function sendData(data) {
+        var form = new FormData();
+        form.append('file', data, 'data.mp3');
+        form.append('title', 'data.mp3');
+        //Chrome inspector shows that the post data includes a file and a title.
+        $.ajax({
+            type: 'POST',
+            url: '/',
+            data: form,
+            cache: false,
+            processData: false,
+            contentType: false
+        }).done(function(data) {
+            console.log(data);
+        });
+    }
+
+    startRecording.onclick = e => {
+        console.log('Recording are started..');
+        startRecording.disabled = true;
+        stopRecording.disabled = false;
+        audioChunks = [];
+        rec.start();
+    };
+
+    stopRecording.onclick = e => {
+        console.log("Recording are stopped.");
+        startRecording.disabled = false;
+        stopRecording.disabled = true;
+        rec.stop();
+        $.ajax({
+            type: 'GET',
+            url: '/',
+            success: function(response) {
+                console.log(response);
+            }
+        });
+    };
+</script>
 </html>
