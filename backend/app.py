@@ -1,8 +1,16 @@
-from flask import Flask, render_template, request, redirect, flash, send_file, jsonify
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response, redirect, flash, send_file
 import os
 import uuid
 import speech_recognition as sr
 import plotAudio
+import real_time_video
+from camera import VideoCamera
+from flask_cors import CORS  # Import the CORS module
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes of your Flask app
+socketio = SocketIO(app)  # Initialize SocketIO
 from transformers import pipeline
 import subprocess
 
@@ -22,7 +30,10 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @app.route('/', methods=['GET', 'POST'])
 def root():
-    transcript= sentiment_label = sentiment_rating = plotUrl = ""
+    
+    EMOTIONS = ["angry" ,"disgust","scared", "happy", "sad", "surprised", "neutral"]
+    transcript= sentiment_label = sentiment_rating = plotUrl = label = emotion_probability =  \
+        emotion_probabilities  = base64_frame = canvas = ""
     if request.method == "POST":
         if "file" not in request.files:
             flash('No file part')
@@ -56,7 +67,7 @@ def root():
             # Split transcript into sentences
             # sentences = nltk.sent_tokenize(transcript)
 
-             # Analyze sentiment for each sentence
+            # Analyze sentiment for each sentence
             # for sentence in sentences:
             #     results = sentiment_pipeline(sentence)
             #     sentiment_label = results[0]['label']
@@ -74,6 +85,7 @@ def root():
             sentiment_rating = results[0]['score']
             sentiment_label = results[0]['label']
             plotUrl = plotAudio.url
+            label, emotion_probability, emotion_probabilities, EMOTIONS = real_time_video.facial_analysis(socketio)
 
             return jsonify({
                 "transcript": transcript,
@@ -85,7 +97,22 @@ def root():
         else:
             flash('Error converting file to WAV format')
         
-    return render_template('Web.html')
+    return render_template('Web.html', label=label, emotion_probability=emotion_probability, emotion_probabilities = emotion_probabilities, EMOTIONS=EMOTIONS, canvas=canvas)
+
+
+def gen(camera):
+    while True:
+        frame = camera.get_frame()
+        yield (b'--frame\r\n'
+            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen(VideoCamera()),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# if __name__ == "__main__":
+#     socketio.run(app, debug=True, use_reloader=False, threaded=True)  # Use SocketIO's run method
 
 # @app.route('/audio')
 # def serve_audio():
@@ -95,146 +122,3 @@ def root():
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False, threaded=True)
-
-
-# from flask import Flask, jsonify, render_template, request, redirect, url_for
-# import speech_recognition as sr
-# import AudioIntelligence
-# import plotAudio
-# # import facialAnalysis
-# from flask_cors import CORS  # Import the CORS module
-# from io import BytesIO
-
-# app = Flask(__name__)
-# CORS(app)  # Enable CORS for all routes of your Flask app
-
-
-# @app.route('/')
-# def index():
-#     # return render_template('index.html')
-#     return {"members": ["member1","member2","member3"]}
-
-# if __name__ == "__main__":
-#     app.run(debug=True)
-
-# @app.route('/data', methods=['GET', 'POST'])
-# def audio():
-
-#     transcript = s_results = k_results = plotUrl = ""
-
-#     if request.method == "POST":
-#         print("FORM DATA RECEIVED")
-
-#         if 'audio' not in request.files:
-#             return jsonify({"error": "No audio provided"})
-        
-#         audio_file = request.files['audio']
-        
-#         if audio_file.filename == '':
-#             return jsonify({"error": "No audio selected"})
-        
-#         # Read the audio file data from memory
-#         audio_data = audio_file.read()
-
-#         if "file" not in request.files:
-#             return jsonify({"error": "No file provided"})
-
-#         # file = request.files["file"]
-#         # if file.filename == "":
-#         #     return jsonify({"error": "No file selected"})
-
-#         recognizer = sr.Recognizer()
-#         # audioFile = sr.AudioFile(file)
-#         audioFile = sr.AudioFile(audio_data)
-
-#         with audioFile as source:
-#             data = recognizer.record(source)
-
-#         transcript = recognizer.recognize_google(data, key=None)
-#         print(transcript)
-
-#         AudioIntelligence.audioIntelligence()
-#         s_results = AudioIntelligence.s_results
-#         k_results = AudioIntelligence.k_results
-#         plotUrl = plotAudio.url
-
-#     return jsonify({
-#         'transcript': transcript,
-#         's_results': s_results,
-#         'k_results': k_results,
-#         'plotUrl': plotUrl
-#     })
-
-# @app.route('/data', methods=['POST'])
-# def audio():
-#     transcript = s_results = k_results = plotUrl = ""
-
-#     if 'audio' not in request.files:
-#         return jsonify({"error": "No audio provided"})
-
-#     audio_file = request.files['audio']
-#     if audio_file.filename == '':
-#         return jsonify({"error": "No audio selected"})
-    
-#     audio_data = audio_file.read()
-
-#     # Create a file-like object from the audio data
-#     audio_file_like = BytesIO(audio_data)
-
-#     from pydub import AudioSegment
-#     audio = AudioSegment.from_file(audio_file_like, format="wav")
-
-#     recognizer = sr.Recognizer()
-#     with sr.AudioFile(audio_file_like) as source:
-#         data = recognizer.record(source)
-
-#     transcript = recognizer.recognize_google(data, key=None)
-#     print(transcript)
-
-#     AudioIntelligence.audioIntelligence()
-#     s_results = AudioIntelligence.s_results
-#     k_results = AudioIntelligence.k_results
-#     plotUrl = plotAudio.url
-
-#     return jsonify({
-#         'transcript': transcript,
-#         's_results': s_results,
-#         'k_results': k_results,
-#         'plotUrl': plotUrl
-#     })
-
-# @app.route('/', methods=['GET', 'POST'])
-# def audio():
-#     #transcript = s_results = k_results = plotUrl = f_results = ""
-#     transcript = s_results = k_results = plotUrl = ""
-#     if request.method == "POST":
-#         print("FORM DATA RECEIVED")
-
-#         if "file" not in request.files: return redirect(request.url)
-
-#         file = request.files["file"]
-#         if file.filename == "": return redirect(request.url)
-            
-#         if file:
-#             recognizer = sr.Recognizer()
-#             audioFile = sr.AudioFile(file)
-#             with audioFile as source:
-#                 data = recognizer.record(source)
-#             transcript = recognizer.recognize_google(data, key=None)
-#             print(transcript)
-
-#         AudioIntelligence.audioIntelligence()
-#         s_results = AudioIntelligence.s_results
-#         k_results = AudioIntelligence.k_results
-
-#         plotUrl = plotAudio.url
-
-#         # f_results = facialAnalysis.f_results
-
-#     #return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl, f_results=f_results)
-#     return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl)
-
-
-# if __name__ == "__main__":
-#     app.run(debug=True, use_reloader=False, threaded=True)
-
