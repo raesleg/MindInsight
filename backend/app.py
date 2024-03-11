@@ -1,16 +1,20 @@
-from flask import Flask, render_template, request, redirect, flash, send_file
+from flask import Flask, render_template, request, redirect, flash, send_file, jsonify
 import os
 import uuid
 import speech_recognition as sr
-import AudioIntelligence
 import plotAudio
-# import facialAnalysis
+from transformers import pipeline
 import subprocess
+
+import nltk
+nltk.download('punkt')  # This downloads necessary NLTK data
 
 UPLOAD_FOLDER = 'files'
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+sentiment_pipeline = pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
 
 # Ensure the upload folder exists
 if not os.path.exists(UPLOAD_FOLDER):
@@ -18,7 +22,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @app.route('/', methods=['GET', 'POST'])
 def root():
-    transcript = s_results = k_results = plotUrl = ""
+    transcript= sentiment_label = sentiment_rating = plotUrl = ""
     if request.method == "POST":
         if "file" not in request.files:
             flash('No file part')
@@ -36,8 +40,8 @@ def root():
         full_file_name_wav = os.path.splitext(full_file_name_mp3)[0] + ".wav"
         file.save(full_file_name_mp3)
 
-        # Use ffmpeg to convert MP3 to WAV
-        subprocess.run(['ffmpeg', '-i', full_file_name_mp3, full_file_name_wav])
+        # Use ffmpeg to convert MP3 to WAV, force overwrite existing file
+        subprocess.run(['ffmpeg', '-y', '-i', full_file_name_mp3, full_file_name_wav])
 
         if os.path.exists(full_file_name_wav):
             recognizer = sr.Recognizer()
@@ -47,24 +51,47 @@ def root():
                 data = recognizer.record(source)
 
             transcript = recognizer.recognize_google(data, key=None)
-            print(transcript)
+            print('text: ',transcript)
+
+            # Split transcript into sentences
+            # sentences = nltk.sent_tokenize(transcript)
+
+             # Analyze sentiment for each sentence
+            # for sentence in sentences:
+            #     results = sentiment_pipeline(sentence)
+            #     sentiment_label = results[0]['label']
+            #     if sentiment_label == "NEG":
+            #         sentiment = "Negative"
+            #     elif sentiment_label == "POS":
+            #         sentiment = "Positive"
+            #     else:
+            #         sentiment = "Neutral"
+            #     sentiments.append((sentence, sentiment))
+
+            # Analyze sentiment for each sentence
+            results = sentiment_pipeline(transcript)
+            print(results)
+            sentiment_rating = results[0]['score']
+            sentiment_label = results[0]['label']
+            plotUrl = plotAudio.url
+
+            return jsonify({
+                "transcript": transcript,
+                "sentiment_label": sentiment_label,
+                "sentiment_rating": sentiment_rating,
+                "plotUrl": plotUrl
+            })
 
         else:
             flash('Error converting file to WAV format')
+        
+    return render_template('Web.html')
 
-        AudioIntelligence.audioIntelligence()
-        s_results = AudioIntelligence.s_results
-        k_results = AudioIntelligence.k_results
-
-        plotUrl = plotAudio.url
-
-    return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl)
-
-@app.route('/audio')
-def serve_audio():
-    audio_file_path = 'files/TranscribeThis.wav'  # Specify the path to your audio file
-    print(audio_file_path)
-    return send_file(audio_file_path, mimetype='audio/wav')
+# @app.route('/audio')
+# def serve_audio():
+#     audio_file_path = 'files/TranscribeThis.wav'  # Specify the path to your audio file
+#     print(audio_file_path)
+#     return send_file(audio_file_path, mimetype='audio/wav')
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False, threaded=True)
