@@ -19,8 +19,7 @@
     </div>
     <div id="camContainer" class="left">
         <h1 id="CH1">Video Feed</h1>
-        <img id="webcam" src="data:image/jpeg;base64, {{ base64_frame }}" width="100%" height="auto">
-        <img id='emotionCanvas' width="100%" style="position: absolute; top: 0; left: 0;" src="data:image/jpeg;base64, {{ canvas }}">
+        <img id="bg" src="{{ url_for('video_feed') }}">
     </div>
     <div id="FacialContainer" class="left">
         <h1 id="FH1">Facial Emotion Analysis</h1>

@@ -1,9 +1,9 @@
-from flask import Flask, jsonify, render_template, request, redirect, url_for
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response
 import speech_recognition as sr
 import AudioIntelligence
 import plotAudio
 import real_time_video
-# import facialAnalysis
+from camera import VideoCamera
 from flask_cors import CORS  # Import the CORS module
 from flask_socketio import SocketIO, emit
 
@@ -83,9 +83,21 @@ def audio():
         label, emotion_probability, emotion_probabilities, EMOTIONS = real_time_video.facial_analysis(socketio)
         plotUrl = plotAudio.url
 
-    return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl, base64_frame=base64_frame,
+    return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl,
                            label=label, emotion_probability=emotion_probability, emotion_probabilities = emotion_probabilities, EMOTIONS=EMOTIONS, canvas=canvas)
+    gen(camera)
+    video_feed()
 
+def gen(camera):
+    while True:
+        frame = camera.get_frame()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen(VideoCamera()),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, use_reloader=False, threaded=True)  # Use SocketIO's run method
