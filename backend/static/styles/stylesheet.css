@@ -25,8 +25,8 @@ p, input {
     display: flex;
     justify-content: space-between;
     border: 1px solid #000;
-    padding: 15px
-    width: 100%
+    padding: 15px;
+    width: 100%;
 }
 
 #uploadContainer h1 {
@@ -47,7 +47,7 @@ p, input {
     border: none;
     padding: 10px 30px;
     float: right;
-    margin-top: -30px;
+    /* margin-top: -30px; */
     margin-right: 30px;
     display: inline-block;
 }

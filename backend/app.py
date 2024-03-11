@@ -1,6 +1,7 @@
-from flask import Flask, jsonify, render_template, request, redirect, url_for, Response
+from flask import Flask, jsonify, render_template, request, redirect, url_for, Response, redirect, flash, send_file
+import os
+import uuid
 import speech_recognition as sr
-import AudioIntelligence
 import plotAudio
 import real_time_video
 from camera import VideoCamera
@@ -10,95 +11,114 @@ from flask_socketio import SocketIO, emit
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes of your Flask app
 socketio = SocketIO(app)  # Initialize SocketIO
+from transformers import pipeline
+import subprocess
 
-# @app.route('/')
-# def index():
-#     # return render_template('index.html')
-#     return {"members": ["member1","member2","member3"]}
+import nltk
+nltk.download('punkt')  # This downloads necessary NLTK data
 
-# if __name__ == "__main__":
-#     app.run(debug=True)
+UPLOAD_FOLDER = 'files'
 
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# @app.route('/data', methods=['GET', 'POST'])
-# def audio():
-#     transcript = s_results = k_results = plotUrl = ""
+sentiment_pipeline = pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
 
-#     if request.method == "POST":
-#         print("FORM DATA RECEIVED")
-
-#         if "file" not in request.files:
-#             return jsonify({"error": "No file provided"})
-
-#         file = request.files["file"]
-#         if file.filename == "":
-#             return jsonify({"error": "No file selected"})
-
-#         recognizer = sr.Recognizer()
-#         audioFile = sr.AudioFile(file)
-
-#         with audioFile as source:
-#             data = recognizer.record(source)
-
-#         transcript = recognizer.recognize_google(data, key=None)
-#         print(transcript)
-
-#         AudioIntelligence.audioIntelligence()
-#         s_results = AudioIntelligence.s_results
-#         k_results = AudioIntelligence.k_results
-#         plotUrl = plotAudio.url
-
-#     return jsonify({
-#         'transcript': transcript,
-#         's_results': s_results,
-#         'k_results': k_results,
-#         'plotUrl': plotUrl
-#     })
+# Ensure the upload folder exists
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 @app.route('/', methods=['GET', 'POST'])
-def audio():
-    #transcript = s_results = k_results = plotUrl = f_results = ""
+def root():
+    
     EMOTIONS = ["angry" ,"disgust","scared", "happy", "sad", "surprised", "neutral"]
-    transcript = s_results = k_results = plotUrl = label = emotion_probability =  \
+    transcript= sentiment_label = sentiment_rating = plotUrl = label = emotion_probability =  \
         emotion_probabilities  = base64_frame = canvas = ""
     if request.method == "POST":
-        print("FORM DATA RECEIVED")
+        if "file" not in request.files:
+            flash('No file part')
+            return redirect(request.url)
 
-        if "file" not in request.files: return redirect(request.url)
+        file = request.files['file']
+        # if user does not select file, browser also
+        # submit an empty part without filename
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
 
-        file = request.files["file"]
-        if file.filename == "": return redirect(request.url)
-            
-        if file:
+        file_name_mp3 = "TranscribeThis.mp3"
+        full_file_name_mp3 = os.path.join(app.config['UPLOAD_FOLDER'], file_name_mp3)
+        full_file_name_wav = os.path.splitext(full_file_name_mp3)[0] + ".wav"
+        file.save(full_file_name_mp3)
+
+        # Use ffmpeg to convert MP3 to WAV, force overwrite existing file
+        subprocess.run(['ffmpeg', '-y', '-i', full_file_name_mp3, full_file_name_wav])
+
+        if os.path.exists(full_file_name_wav):
             recognizer = sr.Recognizer()
-            audioFile = sr.AudioFile(file)
+            audioFile = sr.AudioFile(full_file_name_wav)
+
             with audioFile as source:
                 data = recognizer.record(source)
+
             transcript = recognizer.recognize_google(data, key=None)
-            print(transcript)
+            print('text: ',transcript)
 
-        AudioIntelligence.audioIntelligence()
-        s_results = AudioIntelligence.s_results
-        k_results = AudioIntelligence.k_results
-        label, emotion_probability, emotion_probabilities, EMOTIONS = real_time_video.facial_analysis(socketio)
-        plotUrl = plotAudio.url
+            # Split transcript into sentences
+            # sentences = nltk.sent_tokenize(transcript)
 
-    return render_template('Web.html', transcript=transcript, s_results=s_results, k_results=k_results, plotUrl=plotUrl,
-                           label=label, emotion_probability=emotion_probability, emotion_probabilities = emotion_probabilities, EMOTIONS=EMOTIONS, canvas=canvas)
-    gen(camera)
-    video_feed()
+            # Analyze sentiment for each sentence
+            # for sentence in sentences:
+            #     results = sentiment_pipeline(sentence)
+            #     sentiment_label = results[0]['label']
+            #     if sentiment_label == "NEG":
+            #         sentiment = "Negative"
+            #     elif sentiment_label == "POS":
+            #         sentiment = "Positive"
+            #     else:
+            #         sentiment = "Neutral"
+            #     sentiments.append((sentence, sentiment))
+
+            # Analyze sentiment for each sentence
+            results = sentiment_pipeline(transcript)
+            print(results)
+            sentiment_rating = results[0]['score']
+            sentiment_label = results[0]['label']
+            plotUrl = plotAudio.url
+            label, emotion_probability, emotion_probabilities, EMOTIONS = real_time_video.facial_analysis(socketio)
+
+            return jsonify({
+                "transcript": transcript,
+                "sentiment_label": sentiment_label,
+                "sentiment_rating": sentiment_rating,
+                "plotUrl": plotUrl
+            })
+
+        else:
+            flash('Error converting file to WAV format')
+        
+    return render_template('Web.html', label=label, emotion_probability=emotion_probability, emotion_probabilities = emotion_probabilities, EMOTIONS=EMOTIONS, canvas=canvas)
+
 
 def gen(camera):
     while True:
         frame = camera.get_frame()
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
 @app.route('/video_feed')
 def video_feed():
     return Response(gen(VideoCamera()),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-if __name__ == "__main__":
-    socketio.run(app, debug=True, use_reloader=False, threaded=True)  # Use SocketIO's run method
+# if __name__ == "__main__":
+#     socketio.run(app, debug=True, use_reloader=False, threaded=True)  # Use SocketIO's run method
 
+# @app.route('/audio')
+# def serve_audio():
+#     audio_file_path = 'files/TranscribeThis.wav'  # Specify the path to your audio file
+#     print(audio_file_path)
+#     return send_file(audio_file_path, mimetype='audio/wav')
+
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False, threaded=True)

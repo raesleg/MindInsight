@@ -7,15 +7,25 @@
     <title>MindInsight</title>
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/stylesheet.css') }}" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    
 </head>
 <body>
     <div id="uploadContainer">
-        <h1>Upload new File</h1>
+
+        <p>
+            <button id="startRecording">Start recording</button>
+            <button id="stopRecording" disabled>Stop recording</button>
+        </p>
+
+        <!-- <h1>Upload new File</h1>
         <form method="post" enctype="multipart/form-data">
             <input type="file" name="file" id="fileButton"/>
             <br>
             <input type="submit" id="submitButton" value="Transcribe"/>
-        </form>
+        </form> -->    
+        
+        <button id="submitButton">End Session</button>
     </div>
     <div id="camContainer" class="left">
         <h1 id="CH1">Video Feed</h1>
@@ -31,24 +41,34 @@
     <div id="audioContainer" class="right">
         <div id="speechTranscriptContainer">
             <h1>Transcript</h1>
-            <p class="resultst">{{ transcript }}</p>
+            <!-- <p class="resultst">{{ transcript }}</p> -->
+            <p id="transcript"></p>
         </div>
+        {% if transcript != "" %}
         <div id="SentimentContainer">
             <h1>Sentiment Analysis Results</h1>
-            {% for s_results in s_results %}
+            <!-- {% for sentence, sentiment in sentiments %}
+            <p>{{ sentence }} - Sentiment: {{ sentiment }}</p>
+            {% endfor %}             -->
+            <!-- {% for s_results in s_results %}
             <p class="results">{{ s_results }}</p>
-            {% endfor %}
+            {% endfor %} -->
+            <p id="sentimentLabel"></p>
+            <p id="sentimentRating"></p>
+            <!-- <p>{{sentiment_label}} : {{sentiment_rating}}</p> -->
         </div>
+        {% endif %}
         <div id="KeywordContainer">
             <h1>Word highlight Results</h1>
-            {% for k_results in k_results %}
+            <!-- {% for k_results in k_results %}
             <p class="results">{{ k_results }}</p>
-            {% endfor %}
+            {% endfor %} -->
         </div>
     </div>
     <div id="PlotContainer" class="right">
         <h1 id="plotH1">Audio Waves</h1>
-        <img id="plotWave" src= 'data:image/png;base64, {{plotUrl}}' width="85%" height="100%">
+        <!-- <img id="plotWave" src= 'data:image/png;base64, {{plotUrl}}' width="85%" height="100%"> -->
+        <img id="plotUrl" src="" alt="Plot" width="85%" height="100%">
     </div>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js"></script>
     <script type="text/javascript">
@@ -63,4 +83,88 @@
         });
     </script>
 </body>
+
+<script>
+    navigator
+        .mediaDevices
+        .getUserMedia({audio: true})
+        .then(stream => { handlerFunction(stream) });
+
+    function handlerFunction(stream) {
+        rec = new MediaRecorder(stream);
+        rec.ondataavailable = e => {
+            audioChunks.push(e.data);
+            if (rec.state == "inactive") {
+                let blob = new Blob(audioChunks, {type: 'audio/mpeg-3'});
+                sendData(blob);
+            }
+        }
+    }
+
+    function sendData(data) {
+        var form = new FormData();
+        form.append('file', data, 'data.mp3');
+        form.append('title', 'data.mp3');
+        //Chrome inspector shows that the post data includes a file and a title.
+        $.ajax({
+            type: 'POST',
+            url: '/',
+            data: form,
+            cache: false,
+            processData: false,
+            contentType: false
+        // }).done(function(data) {
+        }).done(function(response) {
+            console.log(response)
+    // Access the individual properties of the response object
+            var plotUrl = response.plotUrl;
+            var sentiment_label = response.sentiment_label;
+            var sentiment_rating = response.sentiment_rating;
+            var transcript = response.transcript;
+
+            console.log(response.sentiment_label)
+            // Update the HTML content with the received data
+            $('#plotUrl').attr('src', 'data:image/png;base64,' + plotUrl);
+            $('#sentimentLabel').text(sentiment_label);
+            $('#sentimentRating').text(sentiment_rating);
+            $('#transcript').text(transcript);
+        }).fail(function(xhr, status, error) {
+            // Handle any errors here
+            console.error("Error:", error);
+        });    
+
+}
+
+    startRecording.onclick = e => {
+        console.log('Recording are started..');
+        startRecording.disabled = true;
+        stopRecording.disabled = false;
+        audioChunks = [];
+        rec.start();
+    };
+
+    stopRecording.onclick = e => {
+        console.log("Recording are stopped.");
+        startRecording.disabled = false;
+        stopRecording.disabled = true;
+        rec.stop();
+        // $.ajax({
+        //     type: 'GET',
+        //     url: '/',
+        //     success: function(response) {
+        //         console.log(response);
+        //     }
+        // });
+        sendData(new Blob(audioChunks, { type: 'audio/mpeg-3' }));
+    };
+
+    $('#submitButton').click(function() {
+        // Reset all values
+        $('#plotUrl').attr('src', ''); // Reset plot URL
+        $('#sentimentLabel').text(''); // Reset sentiment label
+        $('#sentimentRating').text(''); // Reset sentiment rating
+        $('#transcript').text(''); // Reset transcript
+    });
+
+</script>
 </html>
